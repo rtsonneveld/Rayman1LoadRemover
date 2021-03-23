@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Platforms>AnyCPU;x86</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="1.10.0" />
+    <PackageReference Include="OpenCvSharp4.Windows" Version="4.5.1.20210210" />
+    <PackageReference Include="SoundFingerprinting" Version="7.5.5" />
+    <PackageReference Include="SoundFingerprinting.Audio.NAudio" Version="7.0.0" />
+  </ItemGroup>
+
+</Project>

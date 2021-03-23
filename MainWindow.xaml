@@ -1,0 +1,17 @@
+﻿<Window x:Class="Rayman1LoadRemover.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:Rayman1LoadRemover"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="250" Width="400">
+    <Grid>
+        <TextBox x:Name="browseFile" Margin="10,36,95,0" Text="" VerticalAlignment="Top"/>
+        <Label x:Name="label" Content="Select the .mp4 file of the run to time" HorizontalAlignment="Left" Margin="11,10,0,0" VerticalAlignment="Top" Width="378"/>
+        <Button x:Name="browseButton" Content="Browse" Margin="0,35,10,0" VerticalAlignment="Top" Click="browseButton_Click" HorizontalAlignment="Right" Width="80"/>
+        <Button x:Name="startButton" Content="Start" Margin="10,59,10,0" VerticalAlignment="Top" Click="startButton_Click"/>
+
+
+    </Grid>
+</Window>
