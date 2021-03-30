@@ -47,6 +47,7 @@ namespace Rayman1LoadRemover {
         EndSign,
         Overworld,
         BackSign,
+        Boss
     }
 
     public readonly struct Load
@@ -78,12 +79,12 @@ namespace Rayman1LoadRemover {
             return $"Load(Type={Type}, FrameStart={FrameStart}, FrameEnd={FrameEnd}, Length={Length})";
         }
 
-        public bool Overlaps(Load load)
+        public bool Overlaps(Load load, int margin = 0)
         {
-            bool overlap = load.FrameStart < this.FrameEnd && load.FrameEnd > this.FrameStart;
+            bool overlap = load.FrameStart < this.FrameEnd+margin && load.FrameEnd > this.FrameStart-margin;
 
             if (overlap) {
-                Debug.WriteLine($"Overlap found between {this} and {load}");
+                Debug.WriteLine($"Overlap found between {this} and {load} (with margin {margin})");
             }
 
             return overlap;

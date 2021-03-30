@@ -30,12 +30,14 @@ namespace Rayman1LoadRemover {
 
         private static readonly IModelService modelService = new InMemoryModelService(); // store fingerprints in RAM
         private static readonly NAudioService audioService = new NAudioService(); // default audio library
-        
-        private static readonly string SoundsFolder = "sounds";
-        private static readonly string ffmpegPath = Path.Combine("FFmpeg", "bin", "x64", "ffmpeg.exe");
+
+        public static readonly string DataFolder = "data";
+        public static readonly string SoundsFolder = Path.Combine(DataFolder, "sounds");
+        private static readonly string ffmpegPath = Path.Combine(DataFolder, "FFmpeg", "bin", "x64", "ffmpeg.exe");
         private static readonly string tempAudioFilePath = "temp.mp3";
 
-        public static readonly string ImageFolder = "images";
+        public static readonly string ImageFolder = Path.Combine(DataFolder, "images");
+        public static readonly string TemplateFile = Path.Combine(DataFolder, "template.html");
 
         /// <summary>
         /// Duration before the end sign check can detect the end of the loading screen, in seconds
@@ -53,6 +55,7 @@ namespace Rayman1LoadRemover {
             AddSample(SoundType.Boss, Path.Combine(SoundsFolder, "bossdefeat.wav"));
 
             LifeCounter.Init();
+            BossLoads.Init();
         }
 
         /// <summary>
@@ -73,6 +76,7 @@ namespace Rayman1LoadRemover {
             var config = new DefaultQueryConfiguration()
             {
                 AllowMultipleMatchesOfTheSameTrackInQuery = true,
+                PermittedGap = 15.0f,
             };
 
             // query the underlying database for similar audio sub-fingerprints
@@ -130,10 +134,20 @@ namespace Rayman1LoadRemover {
 
                             if (load.HasValue) {
 
+                                // Remove unnecessary backsign loads
                                 loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(load.Value));
 
                                 loads.Add(load.Value);
                             }
+
+                            break;
+                        case SoundType.Boss:
+
+                            var bossLoad = BossLoads.GetBossLoad(capture, result.QueryMatchStartsAt);
+                            loads.Add(bossLoad);
+
+                            // Remove unnecessary backsign loads
+                            loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(bossLoad, (int)(capture.Fps*2.0f)));
 
                             break;
                         default:
@@ -145,7 +159,8 @@ namespace Rayman1LoadRemover {
             LoadResults results = new LoadResults(loads, (float)capture.Fps);
 
             results.SaveDebugImages(capture, "debugExport", "file");
-
+            var report = new LoadRemoverReport(file, results, capture);
+            report.GenerateHtml(TemplateFile).Save("report.html");
             
             return results;
         }

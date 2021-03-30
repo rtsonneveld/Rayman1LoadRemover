@@ -14,4 +14,14 @@
     <PackageReference Include="SoundFingerprinting.Audio.NAudio" Version="7.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Properties\" />
+  </ItemGroup>
+  
+	<ItemGroup> 
+	  <Content Include="data\**"> 
+		<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory> 
+	  </Content> 
+	</ItemGroup>
+
 </Project>
