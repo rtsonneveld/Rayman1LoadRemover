@@ -195,6 +195,8 @@ namespace Rayman1LoadRemover {
 
                 float brightness = GetAverageBrightness(croppedMat);
 
+                Debug.WriteLine($"Brightness {i}: "+brightness);
+
                 // If the screen is dark enough
                 if (brightness < DarknessMaxBrightness) {
 
@@ -214,6 +216,9 @@ namespace Rayman1LoadRemover {
                         endFrame = i;
                         break;
                     }
+                } else if (startFrame >= 0) {
+                    endFrame = i;
+                    break;
                 }
             }
 

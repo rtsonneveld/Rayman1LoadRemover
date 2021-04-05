@@ -12,11 +12,15 @@ namespace Rayman1LoadRemover {
     {
         public readonly List<Load> Loads;
         public readonly float FPS;
+        public readonly int StartingFrame;
+        public readonly int EndingFrame;
 
-        public LoadResults(List<Load> loads, float fps)
+        public LoadResults(List<Load> loads, float fps, int startingFrame = -1, int endingFrame = -1)
         {
             Loads = loads;
             FPS = fps;
+            StartingFrame = startingFrame;
+            EndingFrame = endingFrame;
         }
 
         public void SaveDebugImages(VideoCapture capture, string path, string prefix)
@@ -39,7 +43,8 @@ namespace Rayman1LoadRemover {
         }
 
         public int TotalLoadingFrames => Loads.Sum(l => l.Length);
-        public float TotalLoadingSeconds => TotalLoadingFrames / FPS;
+        public int TotalFramesIncludingLoads => EndingFrame - StartingFrame;
+        public int TotalFramesWithoutLoads => TotalFramesIncludingLoads - TotalLoadingFrames;
     }
 
     public enum LoadType {
@@ -47,7 +52,8 @@ namespace Rayman1LoadRemover {
         EndSign,
         Overworld,
         BackSign,
-        Boss
+        Boss,
+        Start
     }
 
     public readonly struct Load

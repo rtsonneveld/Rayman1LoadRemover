@@ -51,7 +51,13 @@ namespace Rayman1LoadRemover {
                 return;
             }
 
-            await LoadRemover.Start(file);
+            float progressSteps = Enum.GetValues(typeof(LoadRemover.ProgressPhase)).Length;
+
+            await LoadRemover.Start(file, partialRunCheckbox.IsChecked.Value, (phase, progress) =>
+            {
+
+                ProgressBar.Value = (int)phase / progressSteps;
+            });
         }
     }
 }

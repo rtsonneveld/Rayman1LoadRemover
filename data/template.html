@@ -7,9 +7,96 @@
             font-family: Tahoma;
         }
 
+        #summary {
+            border: 1px solid #ddd;
+            padding: 1em 1em 1em 1em;
+            margin-bottom: 1em;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        #loads-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
         #loads-table tr td {
             border: 1px solid #ddd;
         }
+
+        .table-headers {
+            background-color: #555;
+            color: white;
+        }
+
+        .summary-table, .summary-table td {
+            border: 1px solid #555;
+            border-collapse: collapse;
+            padding: 5px 5px 5px 5px;
+        }
+
+        table.summary-table {
+            border-style: hidden;
+            
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .summary-col-1 {
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .summary-col-2, .summary-col-3 {
+            text-align: center;
+        }
+
+        .summary-header {
+            font-weight: bold;
+        }
+
+        .loadtypes {
+            text-align: center;
+        }
+
+/* source: http://www.dynamicdrive.com/style/csslibrary/item/css-popup-image-viewer/ */
+
+        .thumbnail{
+            position: relative;
+            z-index: 0;
+        }
+
+        .thumbnail-image {
+            max-width: 100px;
+        }
+
+        .thumbnail:hover{
+            background-color: transparent;
+            z-index: 50;
+        }
+
+        .thumbnail span{ /*CSS for enlarged image*/
+            position: absolute;
+            background-color: lightyellow;
+            padding: 5px;
+            left: -1000px;
+            border: 1px dashed gray;
+            visibility: hidden;
+            color: black;
+            text-decoration: none;
+        }
+
+        .thumbnail span img{ /*CSS for enlarged image*/
+            border-width: 0;
+            padding: 2px;
+        }
+
+        .thumbnail:hover span{ /*CSS for enlarged image on hover*/
+            visibility: visible;
+            top: 0;
+            left: 60px; /*position where enlarged image should offset horizontally */
+        }
+
     </style>
 
     <!--
@@ -58,13 +145,64 @@
 
     </script>
 </head>
-    <body>
-        <h1>{title}</h1>
-        <table id="loads-table" class="js-sort-table">
-            <tr>
-                {tableHeaders}
-            </tr>
-			{tableRows}
-        </table>
-    </body>
+<body>
+    <h1>{title}</h1>
+        <div id="summary">
+            <table class="summary-table">
+                <tr>
+                    <td class="summary-col-1">{videoFPS} FPS</td>
+                    <td class="summary-col-2 summary-header">Seconds</td>
+                    <td class="summary-col-3 summary-header">Frames</td>
+                </tr>
+                <tr>
+                    <td class="summary-col-1">Start time</td>
+                    <td class="summary-col-2">{startTimeSeconds}</td>
+                    <td class="summary-col-3">{startTimeFrames}</td>
+                </tr>
+                <tr>
+                    <td class="summary-col-1">End time</td>
+                    <td class="summary-col-2">{endTimeSeconds}</td>
+                    <td class="summary-col-3">{endTimeFrames}</td>
+                </tr>
+                <tr>
+                    <td class="summary-col-1">Total time including loads</td>
+                    <td class="summary-col-2">{totalTimeWithLoadsSeconds}</td>
+                    <td class="summary-col-3">{totalTimeWithLoadsFrames}</td>
+                </tr>
+                <tr>
+                    <td class="summary-col-1">Total loading time</td>
+                    <td class="summary-col-2">{totalLoadTimeSeconds}</td>
+                    <td class="summary-col-3">{totalLoadTimeFrames}</td>
+                </tr>
+                <tr>
+                    <td class="summary-col-1">Total time without loads</td>
+                    <td class="summary-col-2">{totalTimeWithoutLoadsSeconds}</td>
+                    <td class="summary-col-3">{totalTimeWithoutLoadsFrames}</td>
+                </tr>
+            </table>
+            <br>
+            <table class="summary-table loadtypes">
+                <tr class="table-headers">
+                    <td>Backsign Loads</td>
+                    <td>Boss Loads</td>
+                    <td>Death Loads</td>
+                    <td>Endsign Loads</td>
+                    <td>Overworld Loads</td>
+                </tr>
+                <tr>
+                    <td>{loadCountBackSign}</td>
+                    <td>{loadCountBoss}</td>
+                    <td>{loadCountDeath}</td>
+                    <td>{loadCountEndSign}</td>
+                    <td>{loadCountOverworld}</td>
+                </tr>
+            </table>
+        </div>
+    <table id="loads-table" class="js-sort-table">
+        <tr class="table-headers">
+            {tableHeaders}
+        </tr>
+	    {tableRows}
+    </table>
+</body>
 </html>

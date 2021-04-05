@@ -5,12 +5,20 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Rayman1LoadRemover"
         mc:Ignorable="d"
-        Title="MainWindow" Height="250" Width="400">
+        Title="Rayman 1 Load Remover" Height="300" Width="400">
     <Grid>
         <TextBox x:Name="browseFile" Margin="10,36,95,0" Text="" VerticalAlignment="Top"/>
         <Label x:Name="label" Content="Select the .mp4 file of the run to time" HorizontalAlignment="Left" Margin="11,10,0,0" VerticalAlignment="Top" Width="378"/>
         <Button x:Name="browseButton" Content="Browse" Margin="0,35,10,0" VerticalAlignment="Top" Click="browseButton_Click" HorizontalAlignment="Right" Width="80"/>
-        <Button x:Name="startButton" Content="Start" Margin="10,59,10,0" VerticalAlignment="Top" Click="startButton_Click"/>
+        <Button x:Name="startButton" Content="Start" Margin="9,0,11,35" Click="startButton_Click" Height="20" VerticalAlignment="Bottom"/>
+        <CheckBox x:Name="partialRunCheckbox" Content="Not a full run (don't time start and end times)" HorizontalAlignment="Left" Margin="11,59,0,0" VerticalAlignment="Top" />
+        <TextBlock x:Name="instructions" TextWrapping="WrapWithOverflow" Margin="11,79,11,60">
+            Make sure the recording starts at the Options screen and doesn't run for more than three minutes after the final hit.
+            <LineBreak />
+            <LineBreak />
+            If the recording is not in 4:3 ratio, it will automatically be cropped to 4:3, this might take a while though.
+        </TextBlock>
+        <ProgressBar x:Name="ProgressBar" Margin="11,0,11,10" Height="20" VerticalAlignment="Bottom" Maximum="1"/>
 
 
     </Grid>

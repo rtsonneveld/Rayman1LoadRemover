@@ -35,6 +35,7 @@ namespace Rayman1LoadRemover {
         public static readonly string SoundsFolder = Path.Combine(DataFolder, "sounds");
         private static readonly string ffmpegPath = Path.Combine(DataFolder, "FFmpeg", "bin", "x64", "ffmpeg.exe");
         private static readonly string tempAudioFilePath = "temp.mp3";
+        private static readonly float DesiredRatio = 4 / 3; // 4:3 Ratio
 
         public static readonly string ImageFolder = Path.Combine(DataFolder, "images");
         public static readonly string TemplateFile = Path.Combine(DataFolder, "template.html");
@@ -44,9 +45,27 @@ namespace Rayman1LoadRemover {
         /// </summary>
         private static float EndSignLoadingScreenMinDuration = 1.0f;
 
+        /// <summary>
+        /// Maximum duration of the "start" screen at the beginning of the video, in seconds
+        /// </summary>
+        private static float StartScreenMaxDuration = 30.0f;
+
         public enum SoundType
         {
             EndSign, Boss
+        }
+
+        public enum ProgressPhase
+        {
+            Phase_0_ExtractMp3,
+            Phase_1_CropVideo,
+            Phase_2_StartingTime,
+            Phase_3_VideoScale,
+            Phase_4_EndingTime,
+            Phase_5_OverworldLoads,
+            Phase_6_DeathLoads,
+            Phase_7_EndSignAndBossLoads,
+            Phase_8_GenerateReport
         }
 
         public static void Init()
@@ -104,23 +123,68 @@ namespace Rayman1LoadRemover {
             modelService.Insert(track, hashedFingerprints);
         }
 
-        public static async Task<LoadResults> Start(string file)
+        public static async Task<LoadResults> Start(string file, bool partialRun, Action<ProgressPhase, float> updateProgress)
         {
             List<Load> loads = new List<Load>();
 
+            updateProgress.Invoke(ProgressPhase.Phase_0_ExtractMp3, 0);
+
             ExtractMp3(file, tempAudioFilePath);
+
             var queryResult = await QueryFile(tempAudioFilePath);
             var entries = queryResult.ResultEntries.ToList();
 
             VideoCapture capture = new VideoCapture(file);
+
+            float ratio = (float)capture.FrameWidth / (float)capture.FrameHeight;
+            //if (capture.fra)
+
+            updateProgress.Invoke(ProgressPhase.Phase_1_CropVideo, 0);
+            // crop video here
+
+            updateProgress.Invoke(ProgressPhase.Phase_2_StartingTime, 0);
+
+            int startingFrame = 0;
+            int endingFrame = capture.FrameCount-1;
+
+            if (!partialRun) {
+                var startLoad = Util.CountDarknessFrames(LoadType.Start, capture, 0.0f,
+                    (int) (capture.Fps * StartScreenMaxDuration));
+                if (startLoad.FrameStart == -1) {
+                    throw new Exception(
+                        "Start screen not detected, make sure the video starts on the \"Start\"/\"Options\" screen");
+                }
+
+                loads.Add(startLoad);
+                startingFrame = startLoad.FrameStart;
+            }
+
+            updateProgress.Invoke(ProgressPhase.Phase_3_VideoScale, 0);
 
             float videoScale = LifeCounter.GetLifeCountScale(capture);
             if (float.IsNaN(videoScale)) {
                 throw new Exception("Video Scale couldn't be determined: " + videoScale);
             }
 
+            updateProgress.Invoke(ProgressPhase.Phase_4_EndingTime, 0);
+
+            if (!partialRun) {
+                var _endingFrame = BossLoads.GetLastFinalBossFrame(capture, videoScale);
+                if (!_endingFrame.HasValue) {
+                    throw new Exception(
+                        "Final hit not detected, make sure the video doesn't end more than 3 minutes after the final hit.");
+                }
+
+                endingFrame = _endingFrame.Value;
+            }
+
+            updateProgress.Invoke(ProgressPhase.Phase_5_OverworldLoads, 0);
             loads.AddRange(OverworldLoads.GetOverworldLoads(capture, videoScale));
+
+            updateProgress.Invoke(ProgressPhase.Phase_6_DeathLoads, 0);
             loads.AddRange(DeathLoads.GetDeathLoads(capture, videoScale));
+
+            updateProgress.Invoke(ProgressPhase.Phase_7_EndSignAndBossLoads, 0);
 
             foreach (var result in queryResult.ResultEntries) {
                 string resultString = $"Track ID = {result.Track.Id}, Score = {result.Confidence}, Confidence = {result.Score}, Match at = {result.QueryMatchStartsAt}";
@@ -133,10 +197,6 @@ namespace Rayman1LoadRemover {
                                 (int)(capture.Fps*EndSignLoadingScreenMinDuration), 600);
 
                             if (load.HasValue) {
-
-                                // Remove unnecessary backsign loads
-                                loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(load.Value));
-
                                 loads.Add(load.Value);
                             }
 
@@ -146,9 +206,6 @@ namespace Rayman1LoadRemover {
                             var bossLoad = BossLoads.GetBossLoad(capture, result.QueryMatchStartsAt);
                             loads.Add(bossLoad);
 
-                            // Remove unnecessary backsign loads
-                            loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(bossLoad, (int)(capture.Fps*2.0f)));
-
                             break;
                         default:
                             throw new ArgumentOutOfRangeException();
@@ -156,7 +213,14 @@ namespace Rayman1LoadRemover {
                 }
             }
 
-            LoadResults results = new LoadResults(loads, (float)capture.Fps);
+            // Remove unnecessary backsign loads (when they overlap with other loads)
+            foreach (var load in loads.Where(l=>l.Type!=LoadType.BackSign).ToList()) {
+                loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(load, (int)(capture.Fps * 0.5f)));
+            }
+
+            updateProgress.Invoke(ProgressPhase.Phase_8_GenerateReport, 0);
+
+            LoadResults results = new LoadResults(loads, (float)capture.Fps, startingFrame, endingFrame);
 
             results.SaveDebugImages(capture, "debugExport", "file");
             var report = new LoadRemoverReport(file, results, capture);
