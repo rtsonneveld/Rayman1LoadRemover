@@ -4,22 +4,54 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Rayman1LoadRemover"
+        xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
         mc:Ignorable="d"
-        Title="Rayman 1 Load Remover" Height="300" Width="400">
+        Title="Rayman 1 Load Remover 0.1.0" Height="500" Width="400" >
     <Grid>
-        <TextBox x:Name="browseFile" Margin="10,36,95,0" Text="" VerticalAlignment="Top"/>
-        <Label x:Name="label" Content="Select the .mp4 file of the run to time" HorizontalAlignment="Left" Margin="11,10,0,0" VerticalAlignment="Top" Width="378"/>
+        <TextBox x:Name="browseFile" Margin="10,36,95,0" Text="" VerticalAlignment="Top" TextChanged="browseFile_TextChanged" AllowDrop="True" PreviewDragOver="FileTextBox_PreviewDragOver" Drop="FileTextBox_Drop"   />
+        <Label x:Name="label" Content="First, select the video (.mp4 only) of the run to time" HorizontalAlignment="Left" Margin="11,10,0,0" VerticalAlignment="Top" Width="378"/>
         <Button x:Name="browseButton" Content="Browse" Margin="0,35,10,0" VerticalAlignment="Top" Click="browseButton_Click" HorizontalAlignment="Right" Width="80"/>
-        <Button x:Name="startButton" Content="Start" Margin="9,0,11,35" Click="startButton_Click" Height="20" VerticalAlignment="Bottom"/>
-        <CheckBox x:Name="partialRunCheckbox" Content="Not a full run (don't time start and end times)" HorizontalAlignment="Left" Margin="11,59,0,0" VerticalAlignment="Top" />
-        <TextBlock x:Name="instructions" TextWrapping="WrapWithOverflow" Margin="11,79,11,60">
-            Make sure the recording starts at the Options screen and doesn't run for more than three minutes after the final hit.
-            <LineBreak />
-            <LineBreak />
-            If the recording is not in 4:3 ratio, it will automatically be cropped to 4:3, this might take a while though.
-        </TextBlock>
-        <ProgressBar x:Name="ProgressBar" Margin="11,0,11,10" Height="20" VerticalAlignment="Bottom" Maximum="1"/>
 
+        <GroupBox Header="Settings" Margin="10,60,10,60" Padding="10">
+            <Grid x:Name="settingsPanel" IsEnabled="False">
+            
+            <StackPanel>
+                <CheckBox x:Name="partialRunCheckbox" Content="Not a full run (don't time start and end times)" Height="20" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                <CheckBox x:Name="cropCheckbox" Content="Crop Video File" Height="20" VerticalAlignment="Top" HorizontalAlignment="Left" Width="101" Checked="cropCheckBox_Checked" Unchecked="cropCheckBox_Checked"/>
+                <UniformGrid x:Name="cropContainer" Rows="2" Columns="5">
 
+                    <Label></Label>
+                    <Label>Left</Label>
+                    <Label>Top</Label>
+                    <Label>Right</Label>
+                    <Label>Bottom</Label>
+
+                    <Button x:Name="CropSizeSelectButton"  Content="Select..." Click="SelectCropSize_OnClick"></Button>
+                    <xctk:IntegerUpDown x:Name="CropLeft" Value="0"></xctk:IntegerUpDown>
+                    <xctk:IntegerUpDown x:Name="CropTop" Value="0"></xctk:IntegerUpDown>
+                    <xctk:IntegerUpDown x:Name="CropRight" Value="0"></xctk:IntegerUpDown>
+                    <xctk:IntegerUpDown x:Name="CropBot" Value="0"></xctk:IntegerUpDown>
+
+                </UniformGrid>
+                <CheckBox x:Name="resizeVideoCheckbox" Margin="0 5 0 0 " Content="Resize Video to 4:3 before processing" Height="20" HorizontalAlignment="Left" Width="250" Checked="cropCheckBox_Checked" Unchecked="cropCheckBox_Checked"/>
+                <TextBlock TextWrapping="WrapWithOverflow" Margin="5">If the run doesn't start on the options screen or ends more than 3 minutes after the final hit, please trim it:</TextBlock>
+                <CheckBox x:Name="trimCheckbox" Content="Trim Video Length" Height="20" HorizontalAlignment="Left" Width="385" Checked="trimCheckBox_Checked" Unchecked="trimCheckBox_Checked"/>
+                <UniformGrid x:Name="trimContainer" Rows="2" Columns="2">
+
+                    <Label>Start</Label>
+                    <Label>End</Label>
+
+                    <xctk:TimeSpanUpDown x:Name="TrimStart" ></xctk:TimeSpanUpDown>
+                    <xctk:TimeSpanUpDown x:Name="TrimEnd" ></xctk:TimeSpanUpDown>
+
+                </UniformGrid>
+            </StackPanel>
+            
+        </Grid>
+        </GroupBox>
+
+        <Button x:Name="startButton" Content="Start" Margin="10,0,10,35" Click="startButton_Click" Height="20" VerticalAlignment="Bottom"/>
+        <ProgressBar x:Name="ProgressBar" Margin="10,0,10,10" Height="20" VerticalAlignment="Bottom" Maximum="1" />
+        <TextBlock x:Name="ProgressBarText"  Margin="10,0,10,10" Height="20" VerticalAlignment="Bottom" HorizontalAlignment="Center" />
     </Grid>
 </Window>

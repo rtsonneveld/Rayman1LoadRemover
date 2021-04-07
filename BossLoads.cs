@@ -22,7 +22,8 @@ namespace Rayman1LoadRemover {
             ImgEndBossMask = Cv2.ImRead(Path.Combine(LoadRemover.ImageFolder, "endbossmask.png"));
         }
 
-        public static int? GetLastFinalBossFrame(VideoCapture capture, float scale, int start=1, int stepSize=-1)
+        public static int? GetLastFinalBossFrame(VideoCapture capture, float scale,
+            Action<LoadRemover.ProgressPhase, float> updateProgress, int start = 1, int stepSize = -1)
         {
             if (stepSize <= 0) {
                 stepSize = (int)capture.Fps;
@@ -49,13 +50,16 @@ namespace Rayman1LoadRemover {
 
                 result.MinMaxLoc(out double minVal, out double maxVal, out Point minLoc, out Point maxLoc);
                 var timespan = TimeSpan.FromSeconds((capture.FrameCount - i) / (float)capture.Fps);
-                Debug.WriteLine($"MinVal @{timespan:g}: {minVal}");
+
+                if (start == 1) {
+                    updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_4_EndingTime, (float)i/maxFrames);
+                }
 
                 if (minVal < EndBossIconMatchThreshold) {
                     if (stepSize == 1) {
                         return (capture.FrameCount - i) + 1;
                     } else {
-                        return GetLastFinalBossFrame(capture, scale, i-stepSize, 1);
+                        return GetLastFinalBossFrame(capture, scale, updateProgress, i-stepSize, stepSize: 1);
                     }
                 }
 

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Extended.Wpf.Toolkit" Version="4.0.2" />
     <PackageReference Include="NAudio" Version="1.10.0" />
     <PackageReference Include="OpenCvSharp4.Windows" Version="4.5.1.20210210" />
     <PackageReference Include="SoundFingerprinting" Version="7.5.5" />

@@ -9,12 +9,16 @@ namespace Rayman1LoadRemover {
     public static class DeathLoads {
         public static float DarknessBrightnessChangeThreshold = 0.002f;
 
-        public static List<Load> GetDeathLoads(VideoCapture capture, float videoScale)
+        public static List<Load> GetDeathLoads(VideoCapture capture, float videoScale,
+            Action<LoadRemover.ProgressPhase, float> updateProgress)
         {
             var deaths = FindDeaths(capture, videoScale);
             var deathLoads = new List<Load>();
 
+            int progress = 0;
+
             foreach (var deathFrame in deaths) {
+                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_6_DeathLoads, ((progress++) / (float)deaths.Count) * 1.0f);
                 deathLoads.Add(Util.CountDarknessFrames(LoadType.Death, capture, deathFrame / capture.Fps, 300));
             }
 

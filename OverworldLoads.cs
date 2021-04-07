@@ -12,7 +12,8 @@ namespace Rayman1LoadRemover {
 
         public static int backSignLoadMaxDuration = 10;
 
-        public static List<Load> GetOverworldLoads(VideoCapture capture, float scale)
+        public static List<Load> GetOverworldLoads(VideoCapture capture, float scale,
+            Action<LoadRemover.ProgressPhase, float> updateProgress)
         {
             List<Load> loads = new List<Load>();
             var binocularFrames = FindBinocularFrames(capture);
@@ -29,8 +30,12 @@ namespace Rayman1LoadRemover {
             }
 
             float fps = (float)capture.Fps;
+            int progress = 0;
 
             foreach (var f in startingFrames) {
+
+
+                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_5_OverworldLoads, 0.5f + ((progress++)/ (float)startingFrames.Count)*0.25f);
 
                 // 30 fps -> 10 frozen frames
                 // 60 fps -> 20 frozen frames
@@ -55,7 +60,13 @@ namespace Rayman1LoadRemover {
 
             }
 
+            updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_5_OverworldLoads, 0.66f);
+
+            progress = 0;
+
             foreach (var f in startingFrames) {
+
+                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_5_OverworldLoads, 0.75f + ((progress++) / (float)startingFrames.Count) * 0.25f);
 
                 // Check back sign loads
                 var _backSignLoad = Util.CountFrozenFrames(LoadType.BackSign, capture, (f / fps) - backSignLoadMaxDuration, (int)fps * 1, (int)fps * backSignLoadMaxDuration);

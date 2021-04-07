@@ -1,22 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
+using System.Windows;
 using NAudio.Wave;
 using OpenCvSharp;
 using SoundFingerprinting;
-using SoundFingerprinting.Audio;
 using SoundFingerprinting.Audio.NAudio;
 using SoundFingerprinting.Builder;
 using SoundFingerprinting.Configuration;
 using SoundFingerprinting.Data;
 using SoundFingerprinting.InMemory;
 using SoundFingerprinting.Query;
-using Point = OpenCvSharp.Point;
 
 namespace Rayman1LoadRemover {
 
@@ -26,7 +23,7 @@ namespace Rayman1LoadRemover {
      *
      */
 
-    static class LoadRemover {
+    public static class LoadRemover {
 
         private static readonly IModelService modelService = new InMemoryModelService(); // store fingerprints in RAM
         private static readonly NAudioService audioService = new NAudioService(); // default audio library
@@ -35,7 +32,6 @@ namespace Rayman1LoadRemover {
         public static readonly string SoundsFolder = Path.Combine(DataFolder, "sounds");
         private static readonly string ffmpegPath = Path.Combine(DataFolder, "FFmpeg", "bin", "x64", "ffmpeg.exe");
         private static readonly string tempAudioFilePath = "temp.mp3";
-        private static readonly float DesiredRatio = 4 / 3; // 4:3 Ratio
 
         public static readonly string ImageFolder = Path.Combine(DataFolder, "images");
         public static readonly string TemplateFile = Path.Combine(DataFolder, "template.html");
@@ -57,15 +53,16 @@ namespace Rayman1LoadRemover {
 
         public enum ProgressPhase
         {
-            Phase_0_ExtractMp3,
-            Phase_1_CropVideo,
+            Phase_0_PreprocessVideo,
+            Phase_1_AnalyseAudio,
             Phase_2_StartingTime,
             Phase_3_VideoScale,
             Phase_4_EndingTime,
             Phase_5_OverworldLoads,
             Phase_6_DeathLoads,
             Phase_7_EndSignAndBossLoads,
-            Phase_8_GenerateReport
+            Phase_8_GenerateReport,
+            Phase_9_Finished
         }
 
         public static void Init()
@@ -123,33 +120,61 @@ namespace Rayman1LoadRemover {
             modelService.Insert(track, hashedFingerprints);
         }
 
-        public static async Task<LoadResults> Start(string file, bool partialRun, Action<ProgressPhase, float> updateProgress)
+        public readonly struct CropSettings
+        {
+            public readonly float Left;
+            public readonly float Top;
+            public readonly float Right;
+            public readonly float Bottom;
+
+            public CropSettings(float left, float top, float right, float bottom) : this()
+            {
+                Left = left;
+                Top = top;
+                Right = right;
+                Bottom = bottom;
+            }
+        }
+
+        public readonly struct TrimSettings {
+            
+            public readonly int Start;
+            public readonly int End;
+
+            public TrimSettings(int start, int end)
+            {
+                Start = start;
+                End = end;
+            }
+        }
+
+        public static LoadResults Start(string file, bool partialRun, CropSettings? crop, TrimSettings? trim, bool resize, Action<ProgressPhase, float> updateProgress)
         {
             List<Load> loads = new List<Load>();
 
-            updateProgress.Invoke(ProgressPhase.Phase_0_ExtractMp3, 0);
-
-            ExtractMp3(file, tempAudioFilePath);
-
-            var queryResult = await QueryFile(tempAudioFilePath);
-            var entries = queryResult.ResultEntries.ToList();
+            updateProgress.Invoke(ProgressPhase.Phase_0_PreprocessVideo, 0);
 
             VideoCapture capture = new VideoCapture(file);
+            string processedFile = CropTrimAndResizeVideo(capture, file, crop, trim, resize);
+            capture = VideoCapture.FromFile(processedFile);
 
-            float ratio = (float)capture.FrameWidth / (float)capture.FrameHeight;
-            //if (capture.fra)
+            updateProgress.Invoke(ProgressPhase.Phase_1_AnalyseAudio, 0);
 
-            updateProgress.Invoke(ProgressPhase.Phase_1_CropVideo, 0);
+            ExtractMp3(processedFile, tempAudioFilePath);
+
+            var queryResult = QueryFile(tempAudioFilePath).Result;
+            var entries = queryResult.ResultEntries.ToList();
+
             // crop video here
 
             updateProgress.Invoke(ProgressPhase.Phase_2_StartingTime, 0);
 
             int startingFrame = 0;
-            int endingFrame = capture.FrameCount-1;
+            int endingFrame = capture.FrameCount - 1;
 
             if (!partialRun) {
                 var startLoad = Util.CountDarknessFrames(LoadType.Start, capture, 0.0f,
-                    (int) (capture.Fps * StartScreenMaxDuration));
+                    (int)(capture.Fps * StartScreenMaxDuration));
                 if (startLoad.FrameStart == -1) {
                     throw new Exception(
                         "Start screen not detected, make sure the video starts on the \"Start\"/\"Options\" screen");
@@ -157,11 +182,16 @@ namespace Rayman1LoadRemover {
 
                 loads.Add(startLoad);
                 startingFrame = startLoad.FrameStart;
+
+                var startOverworldLoad = Util.CountFrozenFrames(LoadType.Overworld, capture, startLoad.FrameEnd / capture.Fps, (int)capture.Fps / 5, (int)capture.Fps * 20);
+
+                if (startOverworldLoad.HasValue)
+                    loads.Add(startOverworldLoad.Value);
             }
 
             updateProgress.Invoke(ProgressPhase.Phase_3_VideoScale, 0);
 
-            float videoScale = LifeCounter.GetLifeCountScale(capture);
+            float videoScale = LifeCounter.GetLifeCountScale(capture, updateProgress);
             if (float.IsNaN(videoScale)) {
                 throw new Exception("Video Scale couldn't be determined: " + videoScale);
             }
@@ -169,7 +199,7 @@ namespace Rayman1LoadRemover {
             updateProgress.Invoke(ProgressPhase.Phase_4_EndingTime, 0);
 
             if (!partialRun) {
-                var _endingFrame = BossLoads.GetLastFinalBossFrame(capture, videoScale);
+                var _endingFrame = BossLoads.GetLastFinalBossFrame(capture, videoScale, updateProgress);
                 if (!_endingFrame.HasValue) {
                     throw new Exception(
                         "Final hit not detected, make sure the video doesn't end more than 3 minutes after the final hit.");
@@ -179,14 +209,19 @@ namespace Rayman1LoadRemover {
             }
 
             updateProgress.Invoke(ProgressPhase.Phase_5_OverworldLoads, 0);
-            loads.AddRange(OverworldLoads.GetOverworldLoads(capture, videoScale));
+            loads.AddRange(OverworldLoads.GetOverworldLoads(capture, videoScale, updateProgress));
 
             updateProgress.Invoke(ProgressPhase.Phase_6_DeathLoads, 0);
-            loads.AddRange(DeathLoads.GetDeathLoads(capture, videoScale));
+            loads.AddRange(DeathLoads.GetDeathLoads(capture, videoScale, updateProgress));
 
             updateProgress.Invoke(ProgressPhase.Phase_7_EndSignAndBossLoads, 0);
 
+            int phase7Progress = 0;
+
             foreach (var result in queryResult.ResultEntries) {
+
+                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_7_EndSignAndBossLoads, (phase7Progress++) / (float)queryResult.ResultEntries.Count());
+
                 string resultString = $"Track ID = {result.Track.Id}, Score = {result.Confidence}, Confidence = {result.Score}, Match at = {result.QueryMatchStartsAt}";
                 Debug.WriteLine(resultString);
 
@@ -194,7 +229,7 @@ namespace Rayman1LoadRemover {
                     switch (type) {
                         case SoundType.EndSign:
                             var load = Util.CountFrozenFrames(LoadType.EndSign, capture, result.QueryMatchStartsAt,
-                                (int)(capture.Fps*EndSignLoadingScreenMinDuration), 600);
+                                (int)(capture.Fps * EndSignLoadingScreenMinDuration), 600);
 
                             if (load.HasValue) {
                                 loads.Add(load.Value);
@@ -214,7 +249,7 @@ namespace Rayman1LoadRemover {
             }
 
             // Remove unnecessary backsign loads (when they overlap with other loads)
-            foreach (var load in loads.Where(l=>l.Type!=LoadType.BackSign).ToList()) {
+            foreach (var load in loads.Where(l => l.Type != LoadType.BackSign).ToList()) {
                 loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(load, (int)(capture.Fps * 0.5f)));
             }
 
@@ -223,14 +258,85 @@ namespace Rayman1LoadRemover {
             LoadResults results = new LoadResults(loads, (float)capture.Fps, startingFrame, endingFrame);
 
             results.SaveDebugImages(capture, "debugExport", "file");
-            var report = new LoadRemoverReport(file, results, capture);
-            report.GenerateHtml(TemplateFile).Save("report.html");
-            
+            var report = new LoadRemoverReport(Path.GetFileName(file), results, capture);
+            var reportPath = Path.ChangeExtension(file,null) + "_report.html";
+            report.GenerateHtml(TemplateFile).Save(reportPath);
+
+            updateProgress.Invoke(ProgressPhase.Phase_8_GenerateReport, 1);
+
+            var openReport = MessageBox.Show($"Done! The report file can be found at {Environment.NewLine}{reportPath}{Environment.NewLine}" +
+                                         $"Do you wish to open the report now?", "Report", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (openReport == MessageBoxResult.Yes) {
+
+                // Open report in default application (hopefully the browser)
+                var psi = new ProcessStartInfo
+                {
+                    FileName = reportPath,
+                    UseShellExecute = true
+                };
+                Process.Start(psi);
+            }
+
+
             return results;
         }
 
-        // Binary search
+        private static string CropTrimAndResizeVideo(VideoCapture capture, string sourceFile, CropSettings? cropSettings, TrimSettings? trimSettings, bool resize)
+        {
+            if (cropSettings == null && trimSettings == null && !resize) {
+                return sourceFile;
+            }
 
+            ProcessStartInfo startInfo = new ProcessStartInfo(ffmpegPath);
+
+            List<string> filters = new List<string>();
+
+            if (cropSettings != null) {
+                var crop = cropSettings.Value;
+                int x = (int)crop.Left;
+                int y = (int)crop.Top;
+                int w = (int)(capture.FrameWidth-crop.Right-x);
+                int h = (int)(capture.FrameHeight-crop.Bottom-y);
+                filters.Add($"crop={w}:{h}:{x}:{y}");
+            }
+
+            // Resize to 4:3
+            if (resize) {
+                int sw = (int)capture.FrameWidth;
+                int sh = (int)(capture.FrameWidth * 3/4);
+                filters.Add($"scale={sw}:{sh}");
+            }
+
+            string targetFile = Path.GetTempFileName()+".mp4";
+
+            Process process = null;
+
+            if (trimSettings != null) {
+
+                var trim = trimSettings.Value;
+                startInfo.Arguments = $"-y -ss {trim.Start} -i \"{sourceFile}\" -to {trim.End} -c copy -copyts \"{targetFile}\"";
+                process = Process.Start(startInfo);
+                while (!process.HasExited) { }
+
+                sourceFile = targetFile;
+                targetFile = Path.GetTempFileName() + ".mp4";
+            }
+
+            //startInfo.RedirectStandardOutput = true;
+            //startInfo.RedirectStandardError = true;
+
+            if (filters.Any()) {
+                startInfo.Arguments = $"-y -i \"{sourceFile}\" -filter:v \"{string.Join(",", filters)}\" -c:a copy \"{targetFile}\"";
+                process = Process.Start(startInfo);
+                while (!process.HasExited) {
+                }
+            }
+
+            //string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
+            //Debug.WriteLine(output);
+
+            return targetFile;
+        }
 
         private static void ExtractMp3(string sourceFile, string targetFile)
         {

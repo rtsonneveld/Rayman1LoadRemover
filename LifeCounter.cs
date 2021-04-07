@@ -109,9 +109,10 @@ namespace Rayman1LoadRemover {
             }
         }
 
-        public static float GetLifeCountScale(VideoCapture capture)
+        public static float GetLifeCountScale(VideoCapture capture, Action<LoadRemover.ProgressPhase, float> updateProgress)
         {
             const int attempts = 20;
+            int currentAttempt = 0;
             for (int i = 0; i < capture.FrameCount; i += capture.FrameCount/attempts) {
                 capture.Set(VideoCaptureProperties.PosFrames, i);
                 var mat = new Mat();
@@ -127,6 +128,8 @@ namespace Rayman1LoadRemover {
                 if (bestScale.Scale > 0 && bestScale.MinValue < LifeCountMatchThreshold) {
                     return bestScale.Scale;
                 }
+
+                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_3_VideoScale, (float)currentAttempt/ attempts);
             }
             return float.NaN;
         }
