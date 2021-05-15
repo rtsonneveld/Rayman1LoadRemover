@@ -47,13 +47,15 @@ namespace Rayman1LoadRemover {
         public int TotalFramesWithoutLoads => TotalFramesIncludingLoads - TotalLoadingFrames;
     }
 
+    [Flags]
     public enum LoadType {
-        Death,
-        EndSign,
-        Overworld,
-        BackSign,
-        Boss,
-        Start
+        None      = 0,
+        Death     = 1,
+        EndSign   = 2,
+        Overworld = 4,
+        BackSign  = 8,
+        Boss      = 16,
+        Start     = 32,
     }
 
     public readonly struct Load

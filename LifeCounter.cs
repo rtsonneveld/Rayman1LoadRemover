@@ -66,7 +66,12 @@ namespace Rayman1LoadRemover {
             var mat = new Mat();
             var resultMat = new Mat();
 
+            if (capture.PosFrames >= capture.FrameCount) {
+                return -1;
+            }
+
             capture.Read(mat);
+
             Cv2.Resize(mat, mat, new Size(mat.Width * scale, mat.Height * scale));
             // Crop to the top-left corner, since that's where the lives are
             mat = mat[0, mat.Height / 4, 0, mat.Width / 3];
@@ -109,11 +114,11 @@ namespace Rayman1LoadRemover {
             }
         }
 
-        public static float GetLifeCountScale(VideoCapture capture, Action<LoadRemover.ProgressPhase, float> updateProgress)
+        public static float GetLifeCountScale(VideoCapture capture, int startFrame, Action<LoadRemover.ProgressPhase, float> updateProgress)
         {
             const int attempts = 20;
             int currentAttempt = 0;
-            for (int i = 0; i < capture.FrameCount; i += capture.FrameCount/attempts) {
+            for (int i = startFrame; i < capture.FrameCount; i += capture.FrameCount/attempts) {
                 capture.Set(VideoCaptureProperties.PosFrames, i);
                 var mat = new Mat();
                 capture.Read(mat);

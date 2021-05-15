@@ -12,11 +12,12 @@ namespace Rayman1LoadRemover {
 
         public static int backSignLoadMaxDuration = 10;
 
-        public static List<Load> GetOverworldLoads(VideoCapture capture, float scale,
+        public static List<Load> GetOverworldLoads(VideoCapture capture, float scale, float timeStart, float timeEnd,
+            LoadType loadTypes,
             Action<LoadRemover.ProgressPhase, float> updateProgress)
         {
             List<Load> loads = new List<Load>();
-            var binocularFrames = FindBinocularFrames(capture);
+            var binocularFrames = FindBinocularFrames(capture, timeStart, timeEnd);
             List<int> startingFrames = new List<int>();
             List<int> endingFrames = new List<int>();
             int lastFrame = -2;
@@ -32,66 +33,73 @@ namespace Rayman1LoadRemover {
             float fps = (float)capture.Fps;
             int progress = 0;
 
-            foreach (var f in startingFrames) {
+            if (loadTypes.HasFlag(LoadType.Overworld)) {
+                foreach (var f in startingFrames) {
 
+                    updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_6_OverworldLoads,
+                        0.5f + ((progress++) / (float) startingFrames.Count) * 0.25f);
 
-                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_5_OverworldLoads, 0.5f + ((progress++)/ (float)startingFrames.Count)*0.25f);
+                    // 30 fps -> 10 frozen frames
+                    // 60 fps -> 20 frozen frames
+                    Rect cropRect = new Rect(0, 0, (int) (capture.FrameWidth * 0.5f), capture.FrameHeight);
+                    var _loadStart = Util.CountFrozenFrames(LoadType.Overworld, capture, f / fps, (int) (fps / 3),
+                        (int) fps * 25, cropRect);
 
-                // 30 fps -> 10 frozen frames
-                // 60 fps -> 20 frozen frames
-                Rect cropRect = new Rect(0,0,(int)(capture.FrameWidth*0.5f), capture.FrameHeight);
-                var _loadStart = Util.CountFrozenFrames(LoadType.Overworld, capture, f / fps, (int)(fps/3), (int)fps*15, cropRect);
-
-                if (!_loadStart.HasValue) {
-                    continue;
-                }
-
-                var loadStart = _loadStart.Value;
-
-                // Check when the life counter first appears, skip three seconds
-                for (int i = (int)fps*3; i < fps * 20; i++) {
-                    var lifeCount = LifeCounter.GetLifeCount(capture, (f + i) / fps, scale);
-                    if (lifeCount >= 0) {
-
-                        loads.Add(new Load(LoadType.Overworld, loadStart.FrameStart, f+i));
-                        break;
+                    if (!_loadStart.HasValue) {
+                        continue;
                     }
-                }
 
+                    var loadStart = _loadStart.Value;
+
+                    // Check when the life counter first appears, skip three seconds
+                    for (int i = (int) fps * 3; i < fps * 20; i++) {
+                        var lifeCount = LifeCounter.GetLifeCount(capture, (f + i) / fps, scale);
+                        if (lifeCount >= 0) {
+
+                            loads.Add(new Load(LoadType.Overworld, loadStart.FrameStart, f + i));
+                            break;
+                        }
+                    }
+
+                }
             }
 
-            updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_5_OverworldLoads, 0.66f);
+            updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_6_OverworldLoads, 0.66f);
 
             progress = 0;
 
-            foreach (var f in startingFrames) {
 
-                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_5_OverworldLoads, 0.75f + ((progress++) / (float)startingFrames.Count) * 0.25f);
+            if (loadTypes.HasFlag(LoadType.BackSign)) {
 
-                // Check back sign loads
-                var _backSignLoad = Util.CountFrozenFrames(LoadType.BackSign, capture, (f / fps) - backSignLoadMaxDuration, (int)fps * 1, (int)fps * backSignLoadMaxDuration);
+                foreach (var f in startingFrames) {
 
-                if (!_backSignLoad.HasValue) {
-                    continue;
+                    updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_6_OverworldLoads,
+                        0.75f + ((progress++) / (float) startingFrames.Count) * 0.25f);
+
+                    // Check back sign loads
+                    var _backSignLoad = Util.CountFrozenFrames(LoadType.BackSign, capture,
+                        (f / fps) - backSignLoadMaxDuration, (int) fps * 1, (int) fps * backSignLoadMaxDuration);
+
+                    if (!_backSignLoad.HasValue) {
+                        continue;
+                    }
+
+                    loads.Add(_backSignLoad.Value);
                 }
-                
-                loads.Add(_backSignLoad.Value);
             }
 
             return loads;
 
         }
 
-        public static List<int> FindBinocularFrames(VideoCapture capture)
+        public static List<int> FindBinocularFrames(VideoCapture capture, float timeStart, float timeEnd)
         {
             int fps = (int)capture.Fps;
-
-            float videoLength = (float)capture.FrameCount / fps;
 
             List<int> firstPassFrames = new List<int>();
             List<int> frames = new List<int>();
 
-            for (float time = 0; time < videoLength; time += 1.0f) {
+            for (float time = timeStart; time < timeEnd; time += 0.5f) { // 1 second is too coarse
 
                 capture.Set(VideoCaptureProperties.PosMsec, time*1000.0f);
                 int frame = (int)capture.Get(VideoCaptureProperties.PosFrames);

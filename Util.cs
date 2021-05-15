@@ -7,10 +7,10 @@ using OpenCvSharp;
 
 namespace Rayman1LoadRemover {
     public static class Util {
-        private const int maxDifferenceIdenticalFrames = 100; // 0-256
-        private const float minMseDifferentFrames = 20f;
-        private const float maxMseIdenticalFrames = 0.1f;
-        private const float minSSIMIdenticalFrames = 0.995f;
+        public const int MaxDifferenceIdenticalFrames = 100; // 0-256
+        public const float MinMseDifferentFrames = 20f;
+        public const float MaxMseIdenticalFrames = 0.1f;
+        public const float MinSSIMIdenticalFrames = 0.995f;
 
         public static float DarknessMaxBrightness = 0.15f;
         public static float BrightMinBrightness = 0.43f;
@@ -98,11 +98,6 @@ namespace Rayman1LoadRemover {
                 }
             }
 
-            /*
-            foreach (var kv in scoresMaxDiff) {
-                Debug.WriteLine($"{kv.Key};{scoresMSE[kv.Key]};{scoresSSIM[kv.Key]};{scoresMaxDiff[kv.Key]}");
-            }*/
-
             if (loadingTime >= 0) {
                 return new Load(type, startingFrame + firstFrame, startingFrame + firstFrame + loadingTime);
             } else {
@@ -111,14 +106,6 @@ namespace Rayman1LoadRemover {
                 return null;
             }
         }
-
-        /*public static bool FramesIdentical(Mat a, Mat b)
-        {
-            var resultMat = new Mat();
-            Cv2.MatchTemplate(InputArray.Create(a), InputArray.Create(b), resultMat, TemplateMatchModes.SqDiffNormed);
-            resultMat.MinMaxLoc(out double minVal, out double maxVal);
-            return minVal < minScoreSameFrames;
-        }*/
 
         public static double GetMaxDifference(Mat a, Mat b)
         {
@@ -131,19 +118,9 @@ namespace Rayman1LoadRemover {
 
         public static bool FramesIdentical(Mat a, Mat b)
         {
-            /*var resultMat = new Mat();
-            Cv2.Subtract(InputArray.Create(a), InputArray.Create(b), resultMat);
-            //Cv2.MatchTemplate(InputArray.Create(a), InputArray.Create(b), resultMat, TemplateMatchModes.SqDiffNormed);
-            resultMat.MinMaxLoc(out double minVal, out double maxVal);
-
-            Debug.WriteLine("MaxVal: "+maxVal);
-
-            return maxVal < maxDifferenceIdenticalFrames;*/
-
-            //var ssim = SSIM.GetMssim(a, b);
             var maxDiff = GetMaxDifference(a, b);
             var mse = GetMSE(a, b);
-            return (mse < maxMseIdenticalFrames || maxDiff < maxDifferenceIdenticalFrames) && mse < minMseDifferentFrames;
+            return (mse < MaxMseIdenticalFrames || maxDiff < MaxDifferenceIdenticalFrames) && mse < MinMseDifferentFrames;
         }
 
         /// <summary>

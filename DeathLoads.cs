@@ -9,16 +9,16 @@ namespace Rayman1LoadRemover {
     public static class DeathLoads {
         public static float DarknessBrightnessChangeThreshold = 0.002f;
 
-        public static List<Load> GetDeathLoads(VideoCapture capture, float videoScale,
+        public static List<Load> GetDeathLoads(VideoCapture capture, float videoScale, int startingFrame, int endingFrame,
             Action<LoadRemover.ProgressPhase, float> updateProgress)
         {
-            var deaths = FindDeaths(capture, videoScale);
+            var deaths = FindDeaths(capture, videoScale, startingFrame, endingFrame);
             var deathLoads = new List<Load>();
 
             int progress = 0;
 
             foreach (var deathFrame in deaths) {
-                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_6_DeathLoads, ((progress++) / (float)deaths.Count) * 1.0f);
+                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_7_DeathLoads, ((progress++) / (float)deaths.Count) * 1.0f);
                 deathLoads.Add(Util.CountDarknessFrames(LoadType.Death, capture, deathFrame / capture.Fps, 300));
             }
 
@@ -26,38 +26,37 @@ namespace Rayman1LoadRemover {
 
         }
 
-        private static List<int> FindDeaths(VideoCapture capture, float videoScale)
+        private static List<int> FindDeaths(VideoCapture capture, float videoScale, int startingFrame, int endingFrame)
         {
             List<int> deaths = new List<int>();
-            FindDeathsRecursive(capture, deaths, videoScale, 0, capture.FrameCount);
+            FindDeathsRecursive(capture, deaths, videoScale, startingFrame, endingFrame);
             return deaths;
         }
 
-        private static bool FindDeathsRecursive(VideoCapture capture, List<int> deaths, float videoScale, int startFrame, int endFrame, int stepSize = 256)
+        private static bool FindDeathsRecursive(VideoCapture capture, List<int> deaths, float videoScale, int startFrame, int endFrame, float stepSize = 4)
         {
             capture.Set(VideoCaptureProperties.PosMsec, 0);
             double fps = capture.Get(VideoCaptureProperties.Fps);
 
+            int stepSizeFrames = (int)(stepSize * capture.Fps);
+
             int currentLives = -1;
             int lastFrame = 0;
-            for (int frame = startFrame; frame < endFrame; frame += stepSize) {
+            for (int frame = startFrame; frame < endFrame; frame += stepSizeFrames) {
                 int lifeCount = LifeCounter.GetLifeCount(capture, frame / fps, videoScale);
 
                 if (currentLives == -1) {
                     currentLives = lifeCount;
                 }
 
-                //Debug.WriteLine($"Life Count @{frame} = {lifeCount}");
                 if (lifeCount > 0) {
 
                     if (lifeCount < currentLives) {
 
-                        //Debug.WriteLine($"Death between {lastFrame} and {frame}");
-
-                        if (stepSize <= 1) {
-                            deaths.Add(lastFrame);
-
-                            //Debug.WriteLine($"Death at exactly {lastFrame}");
+                        if (stepSizeFrames <= 1) {
+                            if (!deaths.Contains(lastFrame)) {
+                                deaths.Add(lastFrame);
+                            }
 
                             Mat dbgMat = new Mat();
                             capture.Read(dbgMat);
@@ -66,8 +65,8 @@ namespace Rayman1LoadRemover {
                         } else {
 
                             // Try first half, then second half
-                            if (!FindDeathsRecursive(capture, deaths, videoScale, lastFrame, frame + stepSize/2, stepSize / 2)) {
-                                FindDeathsRecursive(capture,deaths, videoScale, lastFrame + stepSize / 2, frame,
+                            if (!FindDeathsRecursive(capture, deaths, videoScale, lastFrame, frame + stepSizeFrames / 2, stepSize / 2)) {
+                                FindDeathsRecursive(capture,deaths, videoScale, lastFrame + stepSizeFrames / 2, frame,
                                     stepSize / 2);
                             }
                         }

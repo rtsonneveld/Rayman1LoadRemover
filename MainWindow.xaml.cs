@@ -54,22 +54,22 @@ namespace Rayman1LoadRemover {
 
             string text = phase switch
             {
-                LoadRemover.ProgressPhase.Phase_0_PreprocessVideo     => "Preprocessing Video",
-                LoadRemover.ProgressPhase.Phase_1_AnalyseAudio        => "Analysing Audio",
+                LoadRemover.ProgressPhase.Phase_1_PreprocessVideo     => "Preprocessing Video",
                 LoadRemover.ProgressPhase.Phase_2_StartingTime        => "Determining Start Time",
                 LoadRemover.ProgressPhase.Phase_3_VideoScale          => "Determining Video Scale",
                 LoadRemover.ProgressPhase.Phase_4_EndingTime          => "Determining End Time",
-                LoadRemover.ProgressPhase.Phase_5_OverworldLoads      => "Checking Overworld Loads",
-                LoadRemover.ProgressPhase.Phase_6_DeathLoads          => "Checking Death Loads",
-                LoadRemover.ProgressPhase.Phase_7_EndSignAndBossLoads => "Checking EndSign/Boss Loads",
-                LoadRemover.ProgressPhase.Phase_8_GenerateReport      => "Generating Report",
-                LoadRemover.ProgressPhase.Phase_9_Finished            => "Done",
+                LoadRemover.ProgressPhase.Phase_5_EndSignLoads        => "Checking End Sign Loads",
+                LoadRemover.ProgressPhase.Phase_6_OverworldLoads      => "Checking Overworld Loads",
+                LoadRemover.ProgressPhase.Phase_7_DeathLoads          => "Checking Death Loads",
+                LoadRemover.ProgressPhase.Phase_8_BossLoads => "Checking Boss Loads",
+                LoadRemover.ProgressPhase.Phase_9_GenerateReport      => "Generating Report",
+                LoadRemover.ProgressPhase.Phase_10_Finished            => "Done",
                 _ => ""
             };
 
             this.Dispatcher.Invoke(() => { ProgressBarText.Text = text; });
 
-            bool enableStartButton = (phase == LoadRemover.ProgressPhase.Phase_9_Finished) ;
+            bool enableStartButton = (phase == LoadRemover.ProgressPhase.Phase_10_Finished) ;
             this.Dispatcher.Invoke(() => { startButton.IsEnabled = enableStartButton; });
         }
 
@@ -90,28 +90,42 @@ namespace Rayman1LoadRemover {
 
             LoadRemover.TrimSettings? trimSettings = null;
             if (trimCheckbox.IsChecked == true) {
+
                 trimSettings =
-                    new LoadRemover.TrimSettings((int)Math.Ceiling(TrimStart.Value.Value.TotalSeconds), (int)Math.Ceiling(TrimEnd.Value.Value.TotalSeconds));
+                    new LoadRemover.TrimSettings((float)TrimStart.Value.GetValueOrDefault(TimeSpan.Zero).TotalSeconds, (float)TrimEnd.Value.GetValueOrDefault(TimeSpan.Zero).TotalSeconds);
             }
 
             bool resize = resizeVideoCheckbox.IsChecked == true;
 
             var task = Task.Run(() =>
             {
+                LoadType loadTypes = LoadType.None;
+
+                Dispatcher.Invoke(() =>
+                {
+                    if (checkBoxLoadTypeDeath.IsChecked.GetValueOrDefault(false)) loadTypes |= LoadType.Death;
+                    if (checkBoxLoadTypeEndSign.IsChecked.GetValueOrDefault(false)) loadTypes |= LoadType.EndSign;
+                    if (checkBoxLoadTypeOverworld.IsChecked.GetValueOrDefault(false)) loadTypes |= LoadType.Overworld;
+                    if (checkBoxLoadTypeBackSign.IsChecked.GetValueOrDefault(false)) loadTypes |= LoadType.BackSign;
+                    if (checkBoxLoadTypeBoss.IsChecked.GetValueOrDefault(false)) loadTypes |= LoadType.Boss;
+                    if (checkBoxLoadTypeStart.IsChecked.GetValueOrDefault(false)) loadTypes |= LoadType.Start;
+                });
+
                 try {
-                    LoadRemover.Start(file, partialRun, cropSettings, trimSettings, resize,
+                    LoadRemover.Start(file, partialRun, cropSettings, trimSettings, loadTypes, resize,
                         (phase, progress) =>
                             UpdateProgress(phase, ((int) phase / progressSteps) + (progress / progressSteps))
                     );
                 } catch (Exception e) {
                     Dispatcher.Invoke(() =>
                     {
-                        MessageBox.Show("An error occurred: " + e.Message);
-                        UpdateProgress(LoadRemover.ProgressPhase.Phase_9_Finished, 1.0f);
+                        Debug.WriteLine(e.ToString());
+                        MessageBox.Show($"An error occurred: {e.Message}{Environment.NewLine}{e.StackTrace}");
+                        UpdateProgress(LoadRemover.ProgressPhase.Phase_10_Finished, 1.0f);
                     });
                 }
 
-                UpdateProgress(LoadRemover.ProgressPhase.Phase_9_Finished, 1.0f);
+                UpdateProgress(LoadRemover.ProgressPhase.Phase_10_Finished, 1.0f);
             });
         }
 
@@ -189,6 +203,54 @@ namespace Rayman1LoadRemover {
                     ((TextBox)sender).Text = files[0];
                 }
             }
+        }
+
+        private bool CheckAnyLoadTypeCheckboxesNull()
+        {
+            return checkBoxLoadTypeAll == null ||
+                   checkBoxLoadTypeDeath == null ||
+                   checkBoxLoadTypeEndSign == null ||
+                   checkBoxLoadTypeOverworld == null ||
+                   checkBoxLoadTypeBackSign == null ||
+                   checkBoxLoadTypeBoss == null ||
+                   checkBoxLoadTypeStart == null;
+        }
+
+        private void checkBoxLoadTypeAll_Checked(object sender, RoutedEventArgs e)
+        {
+            if (CheckAnyLoadTypeCheckboxesNull()) {
+                return;
+            }
+            bool c = checkBoxLoadTypeAll.IsChecked.GetValueOrDefault(false);
+
+            checkBoxLoadTypeDeath.IsChecked = c;
+            checkBoxLoadTypeEndSign.IsChecked = c;
+            checkBoxLoadTypeOverworld.IsChecked = c;
+            checkBoxLoadTypeBackSign.IsChecked = c;
+            checkBoxLoadTypeBoss.IsChecked = c;
+            checkBoxLoadTypeStart.IsChecked = c;
+        }
+
+        private void checkBoxLoadTypeAll_UpdateChecked(object sender, RoutedEventArgs e)
+        {
+            if (CheckAnyLoadTypeCheckboxesNull()) {
+                return;
+            }
+
+            checkBoxLoadTypeAll.Checked -= checkBoxLoadTypeAll_Checked;
+            checkBoxLoadTypeAll.Unchecked -= checkBoxLoadTypeAll_Checked;
+
+            checkBoxLoadTypeAll.IsChecked =
+                checkBoxLoadTypeDeath.IsChecked.GetValueOrDefault(false) &&
+                checkBoxLoadTypeEndSign.IsChecked.GetValueOrDefault(false) &&
+                checkBoxLoadTypeOverworld.IsChecked.GetValueOrDefault(false) &&
+                checkBoxLoadTypeBackSign.IsChecked.GetValueOrDefault(false) &&
+                checkBoxLoadTypeBoss.IsChecked.GetValueOrDefault(false) &&
+                checkBoxLoadTypeStart.IsChecked.GetValueOrDefault(false);
+
+            checkBoxLoadTypeAll.Checked += checkBoxLoadTypeAll_Checked;
+            checkBoxLoadTypeAll.Unchecked += checkBoxLoadTypeAll_Checked;
+
         }
     }
 }

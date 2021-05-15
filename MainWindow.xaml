@@ -6,7 +6,7 @@
         xmlns:local="clr-namespace:Rayman1LoadRemover"
         xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
         mc:Ignorable="d"
-        Title="Rayman 1 Load Remover 0.1.0" Height="500" Width="400" >
+        Title="Rayman 1 Load Remover 0.2.0" Height="500" Width="400" >
     <Grid>
         <TextBox x:Name="browseFile" Margin="10,36,95,0" Text="" VerticalAlignment="Top" TextChanged="browseFile_TextChanged" AllowDrop="True" PreviewDragOver="FileTextBox_PreviewDragOver" Drop="FileTextBox_Drop"   />
         <Label x:Name="label" Content="First, select the video (.mp4 only) of the run to time" HorizontalAlignment="Left" Margin="11,10,0,0" VerticalAlignment="Top" Width="378"/>
@@ -41,11 +41,25 @@
                     <Label>Start</Label>
                     <Label>End</Label>
 
-                    <xctk:TimeSpanUpDown x:Name="TrimStart" ></xctk:TimeSpanUpDown>
-                    <xctk:TimeSpanUpDown x:Name="TrimEnd" ></xctk:TimeSpanUpDown>
+                    <xctk:TimeSpanUpDown x:Name="TrimStart" FractionalSecondsDigitsCount="3"></xctk:TimeSpanUpDown>
+                    <xctk:TimeSpanUpDown x:Name="TrimEnd"  FractionalSecondsDigitsCount="3"></xctk:TimeSpanUpDown>
 
                 </UniformGrid>
-            </StackPanel>
+                    
+                    <GroupBox x:Name="groupBox" Header="Load Types" Height="100">
+                        <UniformGrid Rows="4" Columns="2">
+                            <CheckBox x:Name="checkBoxLoadTypeAll" Content="Check all" IsChecked="True" Checked="checkBoxLoadTypeAll_Checked" Unchecked="checkBoxLoadTypeAll_Checked"/>
+                            <GridSplitter />
+                            <CheckBox x:Name="checkBoxLoadTypeDeath" Content="Death" IsChecked="True" Checked="checkBoxLoadTypeAll_UpdateChecked" Unchecked="checkBoxLoadTypeAll_UpdateChecked"/>
+                            <CheckBox x:Name="checkBoxLoadTypeEndSign" Content="EndSign" IsChecked="True" Checked="checkBoxLoadTypeAll_UpdateChecked" Unchecked="checkBoxLoadTypeAll_UpdateChecked"/>
+                            <CheckBox x:Name="checkBoxLoadTypeOverworld" Content="Overworld" IsChecked="True" Checked="checkBoxLoadTypeAll_UpdateChecked" Unchecked="checkBoxLoadTypeAll_UpdateChecked"/>
+                            <CheckBox x:Name="checkBoxLoadTypeBackSign" Content="BackSign" IsChecked="True" Checked="checkBoxLoadTypeAll_UpdateChecked" Unchecked="checkBoxLoadTypeAll_UpdateChecked"/>
+                            <CheckBox x:Name="checkBoxLoadTypeBoss" Content="Boss" IsChecked="True" Checked="checkBoxLoadTypeAll_UpdateChecked" Unchecked="checkBoxLoadTypeAll_UpdateChecked"/>
+                            <CheckBox x:Name="checkBoxLoadTypeStart" Content="Start" IsChecked="True" Checked="checkBoxLoadTypeAll_UpdateChecked" Unchecked="checkBoxLoadTypeAll_UpdateChecked"/>
+                        </UniformGrid>
+                    </GroupBox>
+
+                </StackPanel>
             
         </Grid>
         </GroupBox>

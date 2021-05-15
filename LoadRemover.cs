@@ -37,11 +37,6 @@ namespace Rayman1LoadRemover {
         public static readonly string TemplateFile = Path.Combine(DataFolder, "template.html");
 
         /// <summary>
-        /// Duration before the end sign check can detect the end of the loading screen, in seconds
-        /// </summary>
-        private static float EndSignLoadingScreenMinDuration = 1.0f;
-
-        /// <summary>
         /// Maximum duration of the "start" screen at the beginning of the video, in seconds
         /// </summary>
         private static float StartScreenMaxDuration = 30.0f;
@@ -53,16 +48,16 @@ namespace Rayman1LoadRemover {
 
         public enum ProgressPhase
         {
-            Phase_0_PreprocessVideo,
-            Phase_1_AnalyseAudio,
+            Phase_1_PreprocessVideo,
             Phase_2_StartingTime,
             Phase_3_VideoScale,
             Phase_4_EndingTime,
-            Phase_5_OverworldLoads,
-            Phase_6_DeathLoads,
-            Phase_7_EndSignAndBossLoads,
-            Phase_8_GenerateReport,
-            Phase_9_Finished
+            Phase_5_EndSignLoads,
+            Phase_6_OverworldLoads,
+            Phase_7_DeathLoads,
+            Phase_8_BossLoads,
+            Phase_9_GenerateReport,
+            Phase_10_Finished
         }
 
         public static void Init()
@@ -89,7 +84,7 @@ namespace Rayman1LoadRemover {
             int secondsToAnalyze = (int)Math.Floor(duration.TotalSeconds); // number of seconds to analyze from query file
             int startAtSecond = 0; // start at the begining
 
-            var config = new DefaultQueryConfiguration()
+            var config = new LowLatencyQueryConfiguration()
             {
                 AllowMultipleMatchesOfTheSameTrackInQuery = true,
                 PermittedGap = 15.0f,
@@ -138,43 +133,35 @@ namespace Rayman1LoadRemover {
 
         public readonly struct TrimSettings {
             
-            public readonly int Start;
-            public readonly int End;
+            public readonly float Start;
+            public readonly float End;
 
-            public TrimSettings(int start, int end)
+            public TrimSettings(float start, float end)
             {
                 Start = start;
                 End = end;
             }
         }
 
-        public static LoadResults Start(string file, bool partialRun, CropSettings? crop, TrimSettings? trim, bool resize, Action<ProgressPhase, float> updateProgress)
+        public static LoadResults Start(string file, bool partialRun, CropSettings? crop, TrimSettings? trim, LoadType loadTypes, bool resize, Action<ProgressPhase, float> updateProgress)
         {
             List<Load> loads = new List<Load>();
 
-            updateProgress.Invoke(ProgressPhase.Phase_0_PreprocessVideo, 0);
+            updateProgress.Invoke(ProgressPhase.Phase_1_PreprocessVideo, 0);
 
             VideoCapture capture = new VideoCapture(file);
-            string processedFile = CropTrimAndResizeVideo(capture, file, crop, trim, resize);
+            string processedFile = CropTrimAndResizeVideo(capture, file, crop, /*trim,*/ resize);
             capture = VideoCapture.FromFile(processedFile);
-
-            updateProgress.Invoke(ProgressPhase.Phase_1_AnalyseAudio, 0);
-
-            ExtractMp3(processedFile, tempAudioFilePath);
-
-            var queryResult = QueryFile(tempAudioFilePath).Result;
-            var entries = queryResult.ResultEntries.ToList();
-
-            // crop video here
 
             updateProgress.Invoke(ProgressPhase.Phase_2_StartingTime, 0);
 
             int startingFrame = 0;
-            int endingFrame = capture.FrameCount - 1;
+            int endingFrame = trim.HasValue ? (int)Math.Min((trim.Value.End * capture.Fps) - 1, capture.FrameCount - 1) : capture.FrameCount - 1;
 
-            if (!partialRun) {
-                var startLoad = Util.CountDarknessFrames(LoadType.Start, capture, 0.0f,
-                    (int)(capture.Fps * StartScreenMaxDuration));
+            if (!partialRun && loadTypes.HasFlag(LoadType.Start)) {
+
+                var startLoad = Util.CountDarknessFrames(LoadType.Start, capture, trim?.Start ?? 0,
+                    (int) (capture.Fps * StartScreenMaxDuration));
                 if (startLoad.FrameStart == -1) {
                     throw new Exception(
                         "Start screen not detected, make sure the video starts on the \"Start\"/\"Options\" screen");
@@ -183,15 +170,18 @@ namespace Rayman1LoadRemover {
                 loads.Add(startLoad);
                 startingFrame = startLoad.FrameStart;
 
-                var startOverworldLoad = Util.CountFrozenFrames(LoadType.Overworld, capture, startLoad.FrameEnd / capture.Fps, (int)capture.Fps / 5, (int)capture.Fps * 20);
+                if (loadTypes.HasFlag(LoadType.Overworld)) {
+                    var startOverworldLoad = Util.CountFrozenFrames(LoadType.Overworld, capture,
+                        startLoad.FrameEnd / capture.Fps, (int) capture.Fps / 5, (int) capture.Fps * 20);
 
-                if (startOverworldLoad.HasValue)
-                    loads.Add(startOverworldLoad.Value);
+                    if (startOverworldLoad.HasValue)
+                        loads.Add(startOverworldLoad.Value);
+                }
             }
 
             updateProgress.Invoke(ProgressPhase.Phase_3_VideoScale, 0);
 
-            float videoScale = LifeCounter.GetLifeCountScale(capture, updateProgress);
+            float videoScale = LifeCounter.GetLifeCountScale(capture, startingFrame, updateProgress);
             if (float.IsNaN(videoScale)) {
                 throw new Exception("Video Scale couldn't be determined: " + videoScale);
             }
@@ -199,7 +189,7 @@ namespace Rayman1LoadRemover {
             updateProgress.Invoke(ProgressPhase.Phase_4_EndingTime, 0);
 
             if (!partialRun) {
-                var _endingFrame = BossLoads.GetLastFinalBossFrame(capture, videoScale, updateProgress);
+                var _endingFrame = BossLoads.GetLastFinalBossFrame(capture, videoScale, endingFrame, updateProgress);
                 if (!_endingFrame.HasValue) {
                     throw new Exception(
                         "Final hit not detected, make sure the video doesn't end more than 3 minutes after the final hit.");
@@ -207,45 +197,65 @@ namespace Rayman1LoadRemover {
 
                 endingFrame = _endingFrame.Value;
             }
+            
+            updateProgress.Invoke(ProgressPhase.Phase_5_EndSignLoads, 0);
+            
+            if (loadTypes.HasFlag(LoadType.EndSign))
+                loads.AddRange(EndSignLoads.GetEndSignLoads(capture, videoScale, startingFrame, endingFrame, updateProgress));
 
-            updateProgress.Invoke(ProgressPhase.Phase_5_OverworldLoads, 0);
-            loads.AddRange(OverworldLoads.GetOverworldLoads(capture, videoScale, updateProgress));
+            updateProgress.Invoke(ProgressPhase.Phase_6_OverworldLoads, 0);
+            
+            if (loadTypes.HasFlag(LoadType.Overworld) || loadTypes.HasFlag(LoadType.BackSign))
+                loads.AddRange(OverworldLoads.GetOverworldLoads(capture, videoScale, startingFrame /(float)capture.Fps, endingFrame / (float)capture.Fps, loadTypes, updateProgress));
 
-            updateProgress.Invoke(ProgressPhase.Phase_6_DeathLoads, 0);
-            loads.AddRange(DeathLoads.GetDeathLoads(capture, videoScale, updateProgress));
+            updateProgress.Invoke(ProgressPhase.Phase_7_DeathLoads, 0);
 
-            updateProgress.Invoke(ProgressPhase.Phase_7_EndSignAndBossLoads, 0);
+            if (loadTypes.HasFlag(LoadType.Death))
+                loads.AddRange(DeathLoads.GetDeathLoads(capture, videoScale, startingFrame, endingFrame, updateProgress));
 
-            int phase7Progress = 0;
+            updateProgress.Invoke(ProgressPhase.Phase_8_BossLoads, 0);
 
-            foreach (var result in queryResult.ResultEntries) {
+            if (loadTypes.HasFlag(LoadType.Boss))
+                loads.AddRange(BossLoads.GetBossLoads(capture, videoScale, startingFrame, endingFrame, updateProgress));
 
-                updateProgress.Invoke(LoadRemover.ProgressPhase.Phase_7_EndSignAndBossLoads, (phase7Progress++) / (float)queryResult.ResultEntries.Count());
+            int phase8Progress = 0;
 
-                string resultString = $"Track ID = {result.Track.Id}, Score = {result.Confidence}, Confidence = {result.Score}, Match at = {result.QueryMatchStartsAt}";
-                Debug.WriteLine(resultString);
+            // Remove backsign loads that aren't preceded by an overworld load (ignore death loads for this)
+            var sortedLoads = loads.OrderBy(l=>l.FrameStart).ToList();
+            List<Load> backsignLoadsToRemove = new List<Load>();
+            for (int i = 0; i < sortedLoads.Count; i++) {
+                if (sortedLoads[i].Type == LoadType.BackSign) {
 
-                if (Enum.TryParse(result.Track.Id, out SoundType type)) {
-                    switch (type) {
-                        case SoundType.EndSign:
-                            var load = Util.CountFrozenFrames(LoadType.EndSign, capture, result.QueryMatchStartsAt,
-                                (int)(capture.Fps * EndSignLoadingScreenMinDuration), 600);
+                    var bsLoad = sortedLoads[i];
 
-                            if (load.HasValue) {
-                                loads.Add(load.Value);
-                            }
+                    for (int j = i-1; j >= 0; j--) {
 
+                        var checkLoad = sortedLoads[j];
+
+                        // only consider loads more than 3 seconds before the backsign load
+                        if (checkLoad.FrameStart > bsLoad.FrameStart - capture.Fps * 3.0) {
+                            continue;
+                        }
+
+                        if (checkLoad.Type == LoadType.Death) {
+                            continue;
+                        }
+                        if (checkLoad.Type == LoadType.Overworld) {
                             break;
-                        case SoundType.Boss:
-
-                            var bossLoad = BossLoads.GetBossLoad(capture, result.QueryMatchStartsAt);
-                            loads.Add(bossLoad);
-
-                            break;
-                        default:
-                            throw new ArgumentOutOfRangeException();
+                        } else {
+                            backsignLoadsToRemove.Add(bsLoad);
+                        }
                     }
                 }
+            }
+
+            foreach (var l in backsignLoadsToRemove) {
+                loads.Remove(l);
+            }
+
+            // Remove unnecessary endsign loads (when they overlap with other loads)
+            foreach (var load in loads.Where(l => l.Type != LoadType.EndSign).ToList()) {
+                loads.RemoveAll(l => l.Type == LoadType.EndSign && l.Overlaps(load, (int)(capture.Fps * 0.5f)));
             }
 
             // Remove unnecessary backsign loads (when they overlap with other loads)
@@ -253,7 +263,10 @@ namespace Rayman1LoadRemover {
                 loads.RemoveAll(l => l.Type == LoadType.BackSign && l.Overlaps(load, (int)(capture.Fps * 0.5f)));
             }
 
-            updateProgress.Invoke(ProgressPhase.Phase_8_GenerateReport, 0);
+            // Remove all loads that start after the last frame
+            loads.RemoveAll(l => l.FrameStart > endingFrame);
+
+            updateProgress.Invoke(ProgressPhase.Phase_9_GenerateReport, 0);
 
             LoadResults results = new LoadResults(loads, (float)capture.Fps, startingFrame, endingFrame);
 
@@ -262,7 +275,7 @@ namespace Rayman1LoadRemover {
             var reportPath = Path.ChangeExtension(file,null) + "_report.html";
             report.GenerateHtml(TemplateFile).Save(reportPath);
 
-            updateProgress.Invoke(ProgressPhase.Phase_8_GenerateReport, 1);
+            updateProgress.Invoke(ProgressPhase.Phase_9_GenerateReport, 1);
 
             var openReport = MessageBox.Show($"Done! The report file can be found at {Environment.NewLine}{reportPath}{Environment.NewLine}" +
                                          $"Do you wish to open the report now?", "Report", MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -281,9 +294,9 @@ namespace Rayman1LoadRemover {
             return results;
         }
 
-        private static string CropTrimAndResizeVideo(VideoCapture capture, string sourceFile, CropSettings? cropSettings, TrimSettings? trimSettings, bool resize)
+        private static string CropTrimAndResizeVideo(VideoCapture capture, string sourceFile, CropSettings? cropSettings, /*TrimSettings? trimSettings,*/ bool resize)
         {
-            if (cropSettings == null && trimSettings == null && !resize) {
+            if (cropSettings == null && /*trimSettings == null &&*/ !resize) {
                 return sourceFile;
             }
 
@@ -311,7 +324,10 @@ namespace Rayman1LoadRemover {
 
             Process process = null;
 
-            if (trimSettings != null) {
+            startInfo.RedirectStandardOutput = false;//true;
+            startInfo.RedirectStandardError = false;// true;
+
+            /*if (trimSettings != null) {
 
                 var trim = trimSettings.Value;
                 startInfo.Arguments = $"-y -ss {trim.Start} -i \"{sourceFile}\" -to {trim.End} -c copy -copyts \"{targetFile}\"";
@@ -319,21 +335,19 @@ namespace Rayman1LoadRemover {
                 while (!process.HasExited) { }
 
                 sourceFile = targetFile;
-                targetFile = Path.GetTempFileName() + ".mp4";
-            }
-
-            //startInfo.RedirectStandardOutput = true;
-            //startInfo.RedirectStandardError = true;
+            }*/
 
             if (filters.Any()) {
+
+                if (sourceFile == targetFile) {
+                    targetFile = Path.GetTempFileName() + ".mp4";
+                }
+
                 startInfo.Arguments = $"-y -i \"{sourceFile}\" -filter:v \"{string.Join(",", filters)}\" -c:a copy \"{targetFile}\"";
                 process = Process.Start(startInfo);
                 while (!process.HasExited) {
                 }
             }
-
-            //string output = process.StandardOutput.ReadToEnd() + process.StandardError.ReadToEnd();
-            //Debug.WriteLine(output);
 
             return targetFile;
         }
